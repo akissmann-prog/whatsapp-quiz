@@ -21,7 +21,7 @@ services:
       - quiz-net
 
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: atendai/evolution-api:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
