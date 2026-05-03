@@ -1,3 +1,6 @@
+CREATE DATABASE evolution_db;
+GRANT ALL PRIVILEGES ON DATABASE evolution_db TO quiz_user;
+
 CREATE TABLE IF NOT EXISTS questions (
     id SERIAL PRIMARY KEY,
     text TEXT NOT NULL,
