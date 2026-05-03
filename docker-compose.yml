@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: quiz_db
+      POSTGRES_USER: quiz_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - quiz-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - quiz-net
+
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: http://localhost:8080
+      CORS_ORIGIN: "*"
+      LOG_LEVEL: ERROR
+      DEL_INSTANCE: "false"
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: "postgresql://quiz_user:${POSTGRES_PASSWORD}@postgres:5432/quiz_db"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_api
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      RABBITMQ_ENABLED: "false"
+      WEBSOCKET_ENABLED: "false"
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379/1"
+      CACHE_REDIS_TTL: 604800
+      CACHE_LOCAL_ENABLED: "false"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - quiz-net
+
+  question-svc:
+    build: ./services/question-svc
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql://quiz_user:${POSTGRES_PASSWORD}@postgres:5432/quiz_db
+    depends_on:
+      - postgres
+    networks:
+      - quiz-net
+
+  whatsapp-svc:
+    build: ./services/whatsapp-svc
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_INSTANCE: quiz-bot
+      WHATSAPP_GROUP_ID: ${WHATSAPP_GROUP_ID}
+      REDIS_URL: redis://redis:6379/0
+      RANKING_SVC_URL: http://ranking-svc:8003
+      POLL_TIMEOUT_SECONDS: ${POLL_TIMEOUT_SECONDS:-300}
+    depends_on:
+      - evolution-api
+      - redis
+    networks:
+      - quiz-net
+
+  scheduler-svc:
+    build: ./services/scheduler-svc
+    restart: unless-stopped
+    environment:
+      QUESTION_SVC_URL: http://question-svc:8001
+      WHATSAPP_SVC_URL: http://whatsapp-svc:8002
+      SCHEDULE_HOUR: ${SCHEDULE_HOUR:-9}
+      SCHEDULE_MINUTE: ${SCHEDULE_MINUTE:-0}
+    depends_on:
+      - question-svc
+      - whatsapp-svc
+    networks:
+      - quiz-net
+
+  ranking-svc:
+    build: ./services/ranking-svc
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql://quiz_user:${POSTGRES_PASSWORD}@postgres:5432/quiz_db
+      WHATSAPP_SVC_URL: http://whatsapp-svc:8002
+    depends_on:
+      - postgres
+    networks:
+      - quiz-net
+
+networks:
+  quiz-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
