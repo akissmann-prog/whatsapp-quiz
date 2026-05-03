@@ -30,7 +30,7 @@ services:
       SERVER_PORT: 8080
       SERVER_URL: http://localhost:8080
       CORS_ORIGIN: "*"
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: DEBUG
       DEL_INSTANCE: "false"
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
