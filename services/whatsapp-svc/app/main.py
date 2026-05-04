@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 app = FastAPI(title="WhatsApp Service")
 
+_last_qr_base64: str = ""
+
 EVOLUTION_API_URL = os.environ["EVOLUTION_API_URL"]
 EVOLUTION_API_KEY = os.environ["EVOLUTION_API_KEY"]
 EVOLUTION_INSTANCE = os.environ["EVOLUTION_INSTANCE"]
@@ -47,6 +49,14 @@ class WebhookEvent(BaseModel):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/qr", response_class=None)
+async def show_qr():
+    from fastapi.responses import HTMLResponse
+    if not _last_qr_base64:
+        return HTMLResponse("<h2>QR code ainda não disponível. Aguarde...</h2><script>setTimeout(()=>location.reload(),3000)</script>")
+    return HTMLResponse(f"<img src='{_last_qr_base64}' style='width:300px'><p>Escaneie com o WhatsApp</p><script>setTimeout(()=>location.reload(),10000)</script>")
 
 
 @app.post("/send-poll")
@@ -92,6 +102,12 @@ async def send_message_endpoint(req: SendMessageRequest):
 
 @app.post("/webhook")
 async def receive_webhook(event: WebhookEvent):
+    global _last_qr_base64
+
+    if event.event == "qrcode.updated":
+        _last_qr_base64 = event.data.get("qrcode", {}).get("base64", "")
+        return {"qr_received": True}
+
     if event.event != "messages.update":
         return {"ignored": True}
 
