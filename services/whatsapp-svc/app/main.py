@@ -6,7 +6,7 @@ from typing import List
 
 import httpx
 import redis.asyncio as aioredis
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request
 from pydantic import BaseModel
 
 app = FastAPI(title="WhatsApp Service")
@@ -101,17 +101,25 @@ async def send_message_endpoint(req: SendMessageRequest):
 
 
 @app.post("/webhook")
-async def receive_webhook(event: WebhookEvent):
+async def receive_webhook(request: Request):
     global _last_qr_base64
+    body = await request.json()
+    event_name = body.get("event", "")
+    data = body.get("data", {})
 
-    if event.event == "qrcode.updated":
-        _last_qr_base64 = event.data.get("qrcode", {}).get("base64", "")
+    print(f"WEBHOOK event={event_name} keys={list(data.keys())}", flush=True)
+
+    if "qrcode" in event_name.lower() or "qr" in event_name.lower():
+        qr = data.get("qrcode", {})
+        b64 = qr.get("base64", "") if isinstance(qr, dict) else ""
+        if b64:
+            _last_qr_base64 = b64
+            print("QR CODE RECEBIDO!", flush=True)
         return {"qr_received": True}
 
-    if event.event != "messages.update":
+    if event_name != "messages.update":
         return {"ignored": True}
 
-    data = event.data
     poll_id = data.get("key", {}).get("id", "")
     poll_updates = data.get("pollUpdates", [])
 
