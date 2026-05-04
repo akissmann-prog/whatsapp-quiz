@@ -107,7 +107,7 @@ async def receive_webhook(request: Request):
     event_name = body.get("event", "")
     data = body.get("data", {})
 
-    print(f"WEBHOOK event={event_name} keys={list(data.keys())}", flush=True)
+    print(f"WEBHOOK event={event_name} data={data}", flush=True)
 
     if "qrcode" in event_name.lower() or "qr" in event_name.lower():
         qr = data.get("qrcode", {})
